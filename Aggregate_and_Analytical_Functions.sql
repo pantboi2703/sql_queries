@@ -147,7 +147,7 @@ FROM Sales.Orders
 				4. Multiple Arguments: LEAD(Sales, 2, 10) OVER (ORDER BY OrderDate)
 				5. Conditional Logic: SUM(CASE WHEN Sales > 100 THEN 1 ELSE 0 END) OVER (ORDER BY OrderDate).
 
-	2. OVER (PARTITION BY Category ORDER BY OrderDate  ROWS UNBOUNDED PRECEDING): OVER also empty. 
+	2. OVER (PARTITION BY Category ORDER BY OrderDate ROWS UNBOUNDED PRECEDING): OVER also empty. 
 	   Over Clause: Tells SQL that the function used is a window function. It defines a window or subset of data.
 	   1. Partition Clause: Divide the datasets into windows (partitions).
 	                        Note: Partition Clause is optional in all window functions.
@@ -172,6 +172,111 @@ FROM Sales.Orders
 							              So the partition divides the window into 2 parts (acc. to month).
 										  And the sales in both the window sort highest to lowest fashion.
 										  At the last Rank these(1,2,3) with the seperate column for both the window
+
+       3. Window Frame (Frame Clause): Defines a subset of rows within each window that is relevant for the calculation.
+	         Syntax: AVG(Sales) OVER (PARTITION BY Category ORDER BY OrderDate ROWS BETWEEN CURRENT ROW AND 
+			         UNBOUNDED FOLLOWING).
+
+			 Decode the Frame Syntax: 
+			 1. Frame Types: ROWS and RANGE.
+			 2. Frame Boundary (LOWER Value): CURRENT ROW, N PRECEDING, UNBOUNDED PRECEDING.
+			 3. Frame Boundary (Higher Value): CURRENT ROW, N FOLLOWING, UNBOUNDED FOLLOWING.
+
+			 Rules: Frame Clause can only be used together with order by clause.
+			        Lower Value must be BEFORE the Higher Value.
+
+			 Example 1: SUM(Sales) OVER (ORDER BY Month ROWS BETWEEN CURRENT ROW AND 2 FOLLOWING).
+					  
+					  Month                  Sales              Result
+	-> Current	       Jan                     20                 60
+					   Feb                     10
+	-> 2 Following     Mar                     30
+					   Apr                      5
+					   Jun                     70
+
+					  Month                  Sales              Result
+	        	       Jan                     20                 60
+	-> Current		   Feb                     10                 45
+	                   Mar                     30
+	-> 2 Following	   Apr                      5
+					   Jun                     70
+					   ......................................
+					   ......................................
+					   ......................................
+					  Month                  Sales              Result
+                       Jan                     20                  60
+				       Feb                     10                  45
+                       Mar                     30                 105
+				       Apr                      5                  75
+	-> Current	       Jun                     70                  70
+
+	-> 2 Following
+
+
+			 Example 2: SUM(Sales) OVER (ORDER BY Month ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING).
+
+			 	                 Month                  Sales              Result
+	-> Current	                  Jan                     20                 135
+				                  Feb                     10
+                                  Mar                     30
+				                  Apr                      5
+	-> Unbounded Following	      Jun                     70
+
+			 	                 Month                  Sales              Result
+		                          Jan                     20                 135
+	-> Current			          Feb                     10                 105 
+                                  Mar                     30
+				                  Apr                      5
+	-> Unbounded Following	      Jun                     70
+
+			 	                             Month                  Sales              Result
+		                                      Jan                     20                 135
+				                              Feb                     10                 105
+                                              Mar                     30
+				                              Apr                      5
+	-> Current -> Unbounded Following	      Jun                     70                  70
+
+
+	Example 3: SUM(Sales) OVER (ORDER BY MONTH ROWS BETWEEN 1 PRECEDING AND CURRENT ROW)
+
+			 	                 Month                  Sales              Result
+	        	                  Jan                     20                 
+	-> 1 Preceding                Feb                     10
+    -> Current                    Mar                     30                  40
+				                  Apr                      5
+	                    	      Jun                     70
+
+
+	Example 4: SUM(SALES) OVER(ORDER BY Month ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
+	
+			 	                 Month                  Sales              Result
+	-> Unbounded Preceding        Jan                     20                  
+				                  Feb                     10                  
+    -> If Current is there        Mar                     30                  60
+				                  Apr                      5                  
+	-> Current                    Jun                     70                 135
+
+
+	Example 5: SUM(SALES) OVER(ORDER BY Month ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING)
+
+			 	                 Month                  Sales              Result
+	                              Jan                     20                  
+	-> 1 Preceding	              Feb                     10                  
+    -> Current                    Mar                     30                  45
+	-> 1 Following			      Apr                      5                  
+	                              Jun                     70          
+	
+	Example 6: SUM(SALES) OVER(ORDER BY Month ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING).
+	           Note: Considering all rows.
+
+	                             Month                  Sales              Result
+	-> Unbounded Preceding        Jan                     20                 135 
+				                  Feb                     10                 135
+    -> If Current is there        Mar                     30                 135
+				                  Apr                      5                 135 
+	-> Unbounded Following        Jun                     70                 135
+
+	
 */
 -- Task 1: Find the Total Sales across all orders
 -- Additionally provide details such order Id, order date.
@@ -237,3 +342,107 @@ OrderDate,
 Sales,
 RANK() OVER(ORDER BY Sales DESC) RankSales 
 FROM Sales.Orders
+
+-- Task related to the Window Frame.
+/*
+     Note: Here Window is divided into two parts according to partition by order status.
+	       1. And table is sorted according to orderDate.
+		   2. And in window we have row frames range between current row and 2 following.
+	       3. And in the last entry of the window it give the result only for that window not considering
+		      outside the window.
+*/         
+SELECT 
+	OrderID,
+	OrderDate,
+	OrderStatus,
+	Sales,
+	SUM(Sales) OVER (PARTITION BY OrderStatus ORDER BY OrderDate 
+	ROWS BETWEEN CURRENT ROW AND 2 FOLLOWING) TotalSales
+FROM Sales.Orders
+
+SELECT 
+	OrderID,
+	OrderDate,
+	OrderStatus,
+	Sales,
+	SUM(Sales) OVER (PARTITION BY OrderStatus ORDER BY OrderDate 
+	ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) TotalSales
+FROM Sales.Orders
+
+-- Note: Order by always uses a frame by default frame is Unbounded Preceding and Current Row
+-- SUM(Sales) OVER (PARTITION BY OrderStatus ORDER BY OrderDate) TotalSales
+
+/*
+   Window Function Rules: 1. Window Functions can only be used ONLY in SELECT and ORDER BY Clause.
+                          2. Nesting Window Functions is not allowed.
+						  3. SQL execute Window Functions after where clause.
+						  4. Window Function can be used together with GROUP BY in the same query,
+						     ONLY if the same columns are used.
+
+*/
+
+-- Example for Rule 1: 
+-- Note: We cannot use Window function for the filtering data not use with where clause.
+SELECT 
+	OrderID,
+	OrderDate,
+	OrderStatus,
+	Sales,
+	SUM(Sales) OVER (PARTITION BY OrderStatus ORDER BY OrderDate 
+	ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) TotalSales
+FROM Sales.Orders
+ORDER BY SUM(Sales) OVER (PARTITION BY OrderStatus ORDER BY OrderDate 
+	     ROWS BETWEEN 2 PRECEDING AND CURRENT ROW)
+
+-- Example for Rule 2:
+-- Note: This gives the error.
+SELECT 
+	OrderID,
+	OrderDate,
+	OrderStatus,
+	Sales,
+	SUM(SUM(Sales) OVER (PARTITION BY OrderStatus)) OVER (PARTITION BY OrderStatus) TotalSales
+FROM Sales.Orders
+
+-- Example Demonstration for Rule 3:
+-- Task: Find the total sales for each order status only for two products 101 and 102.
+SELECT 
+	OrderID,
+	OrderDate,
+	OrderStatus,
+	ProductID,
+	Sales,
+	SUM(Sales) OVER (PARTITION BY OrderStatus) TotalSales
+FROM Sales.Orders
+WHERE ProductID IN (101,102)
+
+-- Example Demonstration for Rule 4:
+-- Task: Rank Customers based on their total sales.
+SELECT 
+	CustomerID,
+	SUM(Sales) TotalSales,
+	RANK() OVER(ORDER BY SUM(Sales) DESC) RankCustomers
+FROM Sales.Orders
+GROUP BY CustomerID
+
+/*
+	SQL Window Functions Summary: 
+	-> Performs calculations on subset of data without losing details.
+	-> Windows VS GroupBy:
+	   1. Window is more powerful and Dynamic than GroupBy.
+	   2. Data Analysis: Advanced -> Window Functions, Simple: GroupBy.
+	   3. Use GroupBy + Window in same query, only if same column used.
+	-> Components: Window Functions + Window Definition OVER (Divide Data -> PARTITION BY, 
+	               Sort Data -> ORDER BY, Define Subset -> FRAME).
+	-> Rules: 1. Nesting is not allowed.
+			  2. Window can be used only in SELECT and ORDER BY.
+			  3. SQL executes Window after filtering data using WHERE.
+*/
+
+/*
+			  1. Window Aggregate Function.
+              2. Window Ranking Function.
+	          3. Window Value Function.
+*/
+                
+
