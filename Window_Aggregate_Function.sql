@@ -368,5 +368,5 @@ FROM Sales.Orders
 		- Outlier Detection.
 		- Running Total.
 		- Rolling Total.
-		- Moving Average
+		- Moving Average.
 */
