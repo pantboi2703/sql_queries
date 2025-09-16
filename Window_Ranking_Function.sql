@@ -324,3 +324,4 @@ FROM (
 ) t WHERE DistRank <= 0.4 
 
 SELECT * FROM Sales.Products
+
